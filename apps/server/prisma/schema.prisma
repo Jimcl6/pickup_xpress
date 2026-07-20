@@ -1,0 +1,156 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  pending
+  accepted
+  preparing
+  ready
+  completed
+  cancelled
+}
+
+enum PaymentMethod {
+  gcash
+  bank_transfer
+  cash_on_pickup
+}
+
+enum PaymentStatus {
+  unpaid
+  instructions_sent
+  reference_submitted
+  confirmed
+}
+
+model Merchant {
+  id                 String            @id @default(cuid())
+  name               String
+  slug               String            @unique
+  tagline            String?
+  pickupInstructions String?
+  gcashAccountName   String?
+  gcashNumber        String?
+  bankName           String?
+  bankAccountName    String?
+  bankAccountNumber  String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  users              MerchantUser[]
+  categories         ProductCategory[]
+  products           Product[]
+  pickupSlots        PickupSlot[]
+  orders             Order[]
+}
+
+model MerchantUser {
+  id         String   @id @default(cuid())
+  merchantId String
+  name       String
+  email      String   @unique
+  role       String   @default("merchant")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+}
+
+model ProductCategory {
+  id         String    @id @default(cuid())
+  merchantId String
+  name       String
+  sortOrder  Int       @default(0)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  merchant   Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  products   Product[]
+}
+
+model Product {
+  id          String          @id @default(cuid())
+  merchantId  String
+  categoryId  String
+  name        String
+  description String?
+  priceCents  Int
+  imageUrl    String?
+  isActive    Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  merchant    Merchant        @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  category    ProductCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  orderItems  OrderItem[]
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String
+  email     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  orders    Order[]
+}
+
+model PickupSlot {
+  id         String   @id @default(cuid())
+  merchantId String
+  label      String
+  startTime  DateTime
+  endTime    DateTime
+  capacity   Int      @default(8)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  orders     Order[]
+}
+
+model Order {
+  id               String             @id @default(cuid())
+  orderNumber      String             @unique
+  merchantId       String
+  customerId       String
+  pickupSlotId     String?
+  status           OrderStatus        @default(pending)
+  paymentMethod    PaymentMethod
+  paymentStatus    PaymentStatus      @default(instructions_sent)
+  paymentReference String?
+  subtotalCents    Int
+  totalCents       Int
+  customerNote     String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  merchant         Merchant           @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  customer         Customer           @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  pickupSlot       PickupSlot?        @relation(fields: [pickupSlotId], references: [id], onDelete: SetNull)
+  items            OrderItem[]
+  statusEvents     OrderStatusEvent[]
+}
+
+model OrderItem {
+  id             String   @id @default(cuid())
+  orderId        String
+  productId      String
+  productName    String
+  quantity       Int
+  unitPriceCents Int
+  lineTotalCents Int
+  createdAt      DateTime @default(now())
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product        Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+}
+
+model OrderStatusEvent {
+  id        String      @id @default(cuid())
+  orderId   String
+  status    OrderStatus
+  note      String?
+  createdAt DateTime    @default(now())
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}

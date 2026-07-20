@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pickup-xpress-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pickup_xpress
+      POSTGRES_PASSWORD: pickup_xpress
+      POSTGRES_DB: pickup_xpress
+    ports:
+      - "5432:5432"
+    volumes:
+      - pickup_xpress_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pickup_xpress -d pickup_xpress"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pickup_xpress_postgres:
