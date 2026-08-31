@@ -1,21 +1,22 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: pickup-xpress-postgres
+  mariadb:
+    image: mariadb:11.4
+    container_name: pickup-xpress-mariadb
     restart: unless-stopped
     environment:
-      POSTGRES_USER: pickup_xpress
-      POSTGRES_PASSWORD: pickup_xpress
-      POSTGRES_DB: pickup_xpress
+      MARIADB_USER: pickup_xpress
+      MARIADB_PASSWORD: pickup_xpress
+      MARIADB_DATABASE: pickup_xpress
+      MARIADB_ROOT_PASSWORD: pickup_xpress_root
     ports:
-      - "5432:5432"
+      - "3306:3306"
     volumes:
-      - pickup_xpress_postgres:/var/lib/postgresql/data
+      - pickup_xpress_mariadb:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pickup_xpress -d pickup_xpress"]
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 5s
       timeout: 5s
       retries: 10
 
 volumes:
-  pickup_xpress_postgres:
+  pickup_xpress_mariadb:

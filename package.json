@@ -2,18 +2,24 @@
   "name": "pickup-xpress",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.12"
+  },
   "workspaces": [
     "apps/*"
   ],
   "scripts": {
     "dev": "concurrently \"npm:dev --workspace apps/server\" \"npm:dev --workspace apps/web\"",
+    "start": "npm run start --workspace apps/server",
     "build": "npm run build --workspace apps/server && npm run build --workspace apps/web",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "seed": "npm run seed --workspace apps/server",
     "db:generate": "npm run db:generate --workspace apps/server",
     "db:migrate": "npm run db:migrate --workspace apps/server",
-    "db:studio": "npm run db:studio --workspace apps/server"
+    "db:deploy": "npm run db:deploy --workspace apps/server",
+    "db:studio": "npm run db:studio --workspace apps/server",
+    "admin:set-password": "npm run admin:set-password --workspace apps/server"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

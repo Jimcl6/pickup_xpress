@@ -1,8 +1,12 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import cors from "cors";
 import express from "express";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { ZodError } from "zod";
+import { createAdminRouter } from "./admin-routes.js";
 import { config } from "./config.js";
+import { HttpError } from "./http-error.js";
 import {
   createOrderNumber,
   createOrderSchema,
@@ -10,14 +14,7 @@ import {
 } from "./order-contract.js";
 import { prisma } from "./prisma.js";
 
-class HttpError extends Error {
-  constructor(
-    public status: number,
-    message: string
-  ) {
-    super(message);
-  }
-}
+const webDistPath = fileURLToPath(new URL("../../web/dist", import.meta.url));
 
 const orderInclude = {
   merchant: { select: { name: true, slug: true, pickupInstructions: true } },
@@ -42,8 +39,22 @@ const orderInclude = {
 export function createApp(database: PrismaClient = prisma) {
   const app = express();
 
-  app.use(cors({ origin: config.CORS_ORIGIN }));
+  if (config.NODE_ENV === "production") app.set("trust proxy", 1);
+  app.disable("x-powered-by");
+  app.use((_request, response, next) => {
+    response.setHeader("X-Content-Type-Options", "nosniff");
+    response.setHeader("X-Frame-Options", "DENY");
+    response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    response.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    next();
+  });
+
+  if (config.CORS_ORIGIN) {
+    app.use(cors({ origin: config.CORS_ORIGIN, credentials: true }));
+  }
   app.use(express.json({ limit: "32kb" }));
+  app.use(express.static(webDistPath));
+  app.use("/api/admin", createAdminRouter(database));
 
   app.get("/api/health", async (_request, response) => {
     try {
@@ -269,6 +280,10 @@ export function createApp(database: PrismaClient = prisma) {
     } catch (error) {
       next(error);
     }
+  });
+
+  app.get(/^(?!\/api(?:\/|$)).*/, (_request, response) => {
+    response.sendFile(path.join(webDistPath, "index.html"));
   });
 
   app.use(

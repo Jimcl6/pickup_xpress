@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { hashPassword } from "../src/admin-auth.js";
 
 const prisma = new PrismaClient();
 
@@ -27,6 +28,8 @@ function buildSlot(serviceDate: Date, hour: number, minute: number) {
 }
 
 async function main() {
+  const adminPassword = process.env.ADMIN_SEED_PASSWORD ?? "PickupXpress123!";
+  const passwordHash = await hashPassword(adminPassword);
   const merchant = await prisma.merchant.upsert({
     where: { slug: "cafe-stellaire" },
     update: {
@@ -57,13 +60,15 @@ async function main() {
     update: {
       merchantId: merchant.id,
       name: "Cafe Stellaire Merchant",
-      role: "merchant"
+      role: "owner",
+      passwordHash
     },
     create: {
       merchantId: merchant.id,
       name: "Cafe Stellaire Merchant",
       email: "merchant@cafestellaire.test",
-      role: "merchant"
+      role: "owner",
+      passwordHash
     }
   });
 
@@ -154,6 +159,53 @@ async function main() {
     });
   }
 
+  const inventory = [
+    { id: "seed-stock-coffee", name: "Espresso beans", unit: "g", quantityOnHand: 5000, reorderLevel: 1000, unitCostCents: 2.4 },
+    { id: "seed-stock-milk", name: "Fresh milk", unit: "ml", quantityOnHand: 12000, reorderLevel: 3000, unitCostCents: 0.12 },
+    { id: "seed-stock-cup", name: "Cold cups", unit: "pc", quantityOnHand: 200, reorderLevel: 40, unitCostCents: 650 },
+    { id: "seed-stock-calamansi", name: "Calamansi concentrate", unit: "ml", quantityOnHand: 5000, reorderLevel: 1000, unitCostCents: 0.3 },
+    { id: "seed-stock-panini", name: "Chicken panini", unit: "pc", quantityOnHand: 50, reorderLevel: 10, unitCostCents: 7200 },
+    { id: "seed-stock-momo", name: "Pork momo serving", unit: "pc", quantityOnHand: 40, reorderLevel: 8, unitCostCents: 6800 },
+    { id: "seed-stock-muffin", name: "Blueberry muffin", unit: "pc", quantityOnHand: 36, reorderLevel: 8, unitCostCents: 3800 }
+  ];
+
+  for (const item of inventory) {
+    await prisma.inventoryItem.upsert({
+      where: { id: item.id },
+      update: { ...item, merchantId: merchant.id, isActive: true },
+      create: { ...item, merchantId: merchant.id, isActive: true }
+    });
+    await prisma.inventoryMovement.upsert({
+      where: { id: `seed-movement-${item.id}` },
+      update: { quantityChange: item.quantityOnHand, unitCostCents: item.unitCostCents },
+      create: {
+        id: `seed-movement-${item.id}`,
+        merchantId: merchant.id,
+        inventoryItemId: item.id,
+        type: "adjustment",
+        quantityChange: item.quantityOnHand,
+        unitCostCents: item.unitCostCents,
+        note: "Opening stock"
+      }
+    });
+  }
+
+  await prisma.productInventoryRequirement.deleteMany({
+    where: { product: { merchantId: merchant.id } }
+  });
+  await prisma.productInventoryRequirement.createMany({
+    data: [
+      { productId: "seed-product-iced-latte", inventoryItemId: "seed-stock-coffee", quantity: 18 },
+      { productId: "seed-product-iced-latte", inventoryItemId: "seed-stock-milk", quantity: 180 },
+      { productId: "seed-product-iced-latte", inventoryItemId: "seed-stock-cup", quantity: 1 },
+      { productId: "seed-product-calamansi-cooler", inventoryItemId: "seed-stock-calamansi", quantity: 40 },
+      { productId: "seed-product-calamansi-cooler", inventoryItemId: "seed-stock-cup", quantity: 1 },
+      { productId: "seed-product-chicken-panini", inventoryItemId: "seed-stock-panini", quantity: 1 },
+      { productId: "seed-product-momo-pork", inventoryItemId: "seed-stock-momo", quantity: 1 },
+      { productId: "seed-product-blueberry-muffin", inventoryItemId: "seed-stock-muffin", quantity: 1 }
+    ]
+  });
+
   await prisma.pickupSlot.deleteMany({
     where: { merchantId: merchant.id }
   });
@@ -194,6 +246,7 @@ async function main() {
   });
 
   console.log("Seeded Cafe Stellaire demo data.");
+  console.log("Admin login: merchant@cafestellaire.test");
 }
 
 main()
